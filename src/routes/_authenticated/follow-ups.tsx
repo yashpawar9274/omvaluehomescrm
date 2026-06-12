@@ -29,7 +29,7 @@ function FollowUpsPage() {
     },
   });
   const setStatus = async (id: string, status: string) => {
-    const { error } = await supabase.from("follow_ups").update({ status }).eq("id", id);
+    const { error } = await supabase.from("follow_ups").update({ status: status as any }).eq("id", id);
     if (error) return toast.error(error.message);
     qc.invalidateQueries({ queryKey: ["follow_ups"] });
   };
