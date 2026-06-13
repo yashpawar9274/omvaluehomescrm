@@ -61,7 +61,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
     // Generate "due today" follow-up reminders on mount and every 15 minutes.
     const runReminders = async () => {
-      try { await supabase.rpc("generate_due_followup_reminders"); } catch { /* ignore */ }
+      try { await (supabase as any).rpc("generate_due_followup_reminders"); } catch { /* ignore */ }
     };
     runReminders();
     const reminderTimer = window.setInterval(runReminders, 15 * 60 * 1000);
