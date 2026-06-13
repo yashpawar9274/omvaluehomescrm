@@ -1,11 +1,11 @@
 {
-  "name": "VisitFlow CRM",
-  "short_name": "VisitFlow",
-  "description": "Real estate visit & follow-up CRM",
+  "name": "Om Value Homes",
+  "short_name": "Om Value",
+  "description": "Om Value Homes — 1, 2 & 3 BHK Luxury Apartments in Palghar West",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0F2E2A",
-  "theme_color": "#047857",
+  "theme_color": "#3F5A1F",
   "icons": [
     { "src": "/app-icon.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
   ]
