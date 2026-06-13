@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { BottomNav } from "./bottom-nav";
+import { playNotificationSound, unlockNotificationSound } from "@/lib/notification-sound";
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { user } = useAuth();
@@ -26,12 +27,18 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!user) return;
+    // Unlock WebAudio on first user gesture so notification chimes can play.
+    const unlock = () => { unlockNotificationSound(); };
+    window.addEventListener("pointerdown", unlock, { once: true });
+    window.addEventListener("keydown", unlock, { once: true });
+
     const ch = supabase
       .channel("rt-app-shell")
       .on("postgres_changes", { event: "*", schema: "public", table: "notifications" }, (payload: any) => {
         qc.invalidateQueries({ queryKey: ["unread-notifications", user.id] });
         qc.invalidateQueries({ queryKey: ["notifications"] });
         if (payload.eventType === "INSERT" && payload.new?.user_id === user.id) {
+          playNotificationSound();
           toast.message(payload.new.title, { description: payload.new.message ?? undefined });
         }
       })
@@ -51,7 +58,20 @@ export function AppShell({ children }: { children: ReactNode }) {
         qc.invalidateQueries({ queryKey: ["team"] });
       })
       .subscribe();
-    return () => { supabase.removeChannel(ch); };
+
+    // Generate "due today" follow-up reminders on mount and every 15 minutes.
+    const runReminders = async () => {
+      try { await (supabase as any).rpc("generate_due_followup_reminders"); } catch { /* ignore */ }
+    };
+    runReminders();
+    const reminderTimer = window.setInterval(runReminders, 15 * 60 * 1000);
+
+    return () => {
+      supabase.removeChannel(ch);
+      window.clearInterval(reminderTimer);
+      window.removeEventListener("pointerdown", unlock);
+      window.removeEventListener("keydown", unlock);
+    };
   }, [user, qc]);
 
   const signOut = async () => {
