@@ -154,6 +154,7 @@ export type Database = {
           created_by: string | null
           customer_name: string
           email: string | null
+          flat_type: Database["public"]["Enums"]["flat_type"] | null
           id: string
           last_call_response: string | null
           last_called_at: string | null
@@ -171,6 +172,7 @@ export type Database = {
           created_by?: string | null
           customer_name: string
           email?: string | null
+          flat_type?: Database["public"]["Enums"]["flat_type"] | null
           id?: string
           last_call_response?: string | null
           last_called_at?: string | null
@@ -188,6 +190,7 @@ export type Database = {
           created_by?: string | null
           customer_name?: string
           email?: string | null
+          flat_type?: Database["public"]["Enums"]["flat_type"] | null
           id?: string
           last_call_response?: string | null
           last_called_at?: string | null
