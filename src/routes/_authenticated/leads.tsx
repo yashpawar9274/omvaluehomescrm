@@ -1,8 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus, Search, UserPlus, Phone } from "lucide-react";
+import { Plus, Search, UserPlus, Phone, Upload, PhoneCall, CheckCircle2 } from "lucide-react";
+import * as XLSX from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
@@ -11,7 +12,8 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { LEAD_SOURCES, LEAD_STATUSES, labelOf } from "@/lib/crm-helpers";
+import { Textarea } from "@/components/ui/textarea";
+import { LEAD_SOURCES, LEAD_STATUSES, FLAT_TYPES, CALL_RESPONSES, labelOf } from "@/lib/crm-helpers";
 import { useRole } from "@/hooks/use-auth";
 
 export const Route = createFileRoute("/_authenticated/leads")({ component: LeadsPage });
@@ -20,6 +22,8 @@ function LeadsPage() {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
+  const [callLead, setCallLead] = useState<any | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
   const { data: role } = useRole();
   const isAdmin = !!role?.isAdmin;
 
@@ -52,20 +56,79 @@ function LeadsPage() {
     qc.invalidateQueries({ queryKey: ["leads"] });
   };
 
+  const importFile = async (file: File) => {
+    try {
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, { type: "array" });
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json<any>(sheet, { defval: "" });
+      if (!rows.length) return toast.error("File is empty");
+      const { data: u } = await supabase.auth.getUser();
+      const uid = u.user?.id;
+      const norm = (s: string) => s?.toString().trim().toLowerCase().replace(/\s+|_/g, "");
+      const flatMap: Record<string, string> = { "1bhk": "1bhk", "1": "1bhk", "2bhk": "2bhk", "2": "2bhk", "3bhk": "3bhk", "3": "3bhk", "shop": "shop", "office": "office" };
+      const pickKey = (row: any, keys: string[]) => {
+        for (const k of Object.keys(row)) if (keys.includes(norm(k))) return row[k];
+        return "";
+      };
+      const records = rows.map((r) => {
+        const name = pickKey(r, ["name", "customername", "customer", "fullname"]);
+        const mobile = pickKey(r, ["mobile", "phone", "phonenumber", "contact", "mobilenumber"]);
+        const email = pickKey(r, ["email", "mail"]);
+        const city = pickKey(r, ["city", "location"]);
+        const flat = norm(String(pickKey(r, ["flat", "flattype", "bhk", "requirement"]) ?? ""));
+        const source = norm(String(pickKey(r, ["source", "leadsource"]) ?? ""));
+        const budgetMin = pickKey(r, ["budgetmin", "minbudget", "budget"]);
+        const budgetMax = pickKey(r, ["budgetmax", "maxbudget"]);
+        return {
+          customer_name: String(name || "").trim(),
+          mobile: String(mobile || "").trim(),
+          email: email ? String(email).trim() : null,
+          city: city ? String(city).trim() : null,
+          flat_type: flat && flatMap[flat] ? flatMap[flat] : null,
+          source: source || "website",
+          status: "new",
+          budget_min: budgetMin ? Number(String(budgetMin).replace(/[^\d.]/g, "")) || null : null,
+          budget_max: budgetMax ? Number(String(budgetMax).replace(/[^\d.]/g, "")) || null : null,
+          created_by: uid,
+          assigned_to: uid,
+        };
+      }).filter((r) => r.customer_name && r.mobile);
+      if (!records.length) return toast.error("No valid rows (need 'name' and 'mobile' columns)");
+      const { error } = await supabase.from("leads").insert(records as any);
+      if (error) return toast.error(error.message);
+      toast.success(`Imported ${records.length} leads`);
+      qc.invalidateQueries({ queryKey: ["leads"] });
+    } catch (e: any) {
+      toast.error(e.message ?? "Import failed");
+    } finally {
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
+
   return (
     <div>
       <PageHeader title="Leads" subtitle={isAdmin ? "All leads — assign to team." : "Your assigned leads."}
         action={
-          <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild><Button size="sm"><Plus className="mr-1 h-4 w-4" />New</Button></DialogTrigger>
-            <LeadDialog isAdmin={isAdmin} team={team} onDone={() => { setOpen(false); qc.invalidateQueries({ queryKey: ["leads"] }); }} />
-          </Dialog>
+          <div className="flex items-center gap-2">
+            <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) importFile(f); }} />
+            <Button size="sm" variant="outline" onClick={() => fileRef.current?.click()}>
+              <Upload className="mr-1 h-4 w-4" />Import
+            </Button>
+            <Dialog open={open} onOpenChange={setOpen}>
+              <DialogTrigger asChild><Button size="sm"><Plus className="mr-1 h-4 w-4" />New</Button></DialogTrigger>
+              <LeadDialog isAdmin={isAdmin} team={team} onDone={() => { setOpen(false); qc.invalidateQueries({ queryKey: ["leads"] }); }} />
+            </Dialog>
+          </div>
         }
       />
       <div className="mb-3 relative">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input className="pl-9" placeholder="Search by name or mobile" value={search} onChange={(e) => setSearch(e.target.value)} />
       </div>
+      <p className="mb-2 text-[11px] text-muted-foreground">
+        Import accepts CSV/Excel with columns: name, mobile, email, city, flat (1bhk/2bhk/3bhk/shop/office), source, budget.
+      </p>
       <div className="space-y-2">
         {filtered.length === 0 ? (
           <div className="rounded-2xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">
@@ -87,10 +150,27 @@ function LeadsPage() {
               <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-muted-foreground">
                 <div><span className="text-foreground/70">City:</span> {l.city ?? "—"}</div>
                 <div><span className="text-foreground/70">Source:</span> {labelOf(LEAD_SOURCES, l.source)}</div>
+                <div><span className="text-foreground/70">Need:</span> {labelOf(FLAT_TYPES, l.flat_type)}</div>
                 <div className="col-span-2"><span className="text-foreground/70">Budget:</span> {l.budget_min ? `₹${l.budget_min} – ₹${l.budget_max ?? "?"}` : "—"}</div>
               </div>
+              {l.last_call_response && (
+                <div className="mt-2 flex items-center gap-1.5 rounded-lg bg-accent/40 px-2 py-1 text-[11px]">
+                  <CheckCircle2 className="h-3 w-3 text-primary" />
+                  <span className="font-medium">Last call:</span>
+                  <span className="text-muted-foreground">{labelOf(CALL_RESPONSES, l.last_call_response)}</span>
+                  {l.last_called_at && <span className="ml-auto text-muted-foreground">{new Date(l.last_called_at).toLocaleDateString()}</span>}
+                </div>
+              )}
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <a href={`tel:${l.mobile}`} className="inline-flex h-8 items-center rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground">
+                  <Phone className="mr-1 h-3 w-3" />Call
+                </a>
+                <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setCallLead(l)}>
+                  <PhoneCall className="mr-1 h-3 w-3" />Log response
+                </Button>
+              </div>
               {isAdmin ? (
-                <div className="mt-3 flex items-center gap-2">
+                <div className="mt-2 flex items-center gap-2">
                   <UserPlus className="h-4 w-4 text-muted-foreground" />
                   <Select value={l.assigned_to ?? ""} onValueChange={(v) => assignTo(l.id, v)}>
                     <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Assign to employee" /></SelectTrigger>
@@ -108,12 +188,13 @@ function LeadsPage() {
           );
         })}
       </div>
+      <CallLogDialog lead={callLead} onClose={() => setCallLead(null)} onSaved={() => { setCallLead(null); qc.invalidateQueries({ queryKey: ["leads"] }); }} />
     </div>
   );
 }
 
 function LeadDialog({ onDone, isAdmin, team }: { onDone: () => void; isAdmin: boolean; team: any[] }) {
-  const [form, setForm] = useState({ customer_name: "", mobile: "", email: "", city: "", budget_min: "", budget_max: "", source: "website", status: "new", assigned_to: "" });
+  const [form, setForm] = useState({ customer_name: "", mobile: "", email: "", city: "", budget_min: "", budget_max: "", source: "website", status: "new", assigned_to: "", flat_type: "" });
   const [busy, setBusy] = useState(false);
   const save = async () => {
     if (!form.customer_name.trim() || !form.mobile.trim()) {
@@ -132,6 +213,7 @@ function LeadDialog({ onDone, isAdmin, team }: { onDone: () => void; isAdmin: bo
       budget_max: form.budget_max ? Number(form.budget_max) : null,
       source: form.source as any,
       status: form.status as any,
+      flat_type: (form.flat_type || null) as any,
       created_by: u.user?.id,
       assigned_to: assignedTo,
     });
@@ -148,6 +230,12 @@ function LeadDialog({ onDone, isAdmin, team }: { onDone: () => void; isAdmin: bo
         <Field label="Mobile *"><Input value={form.mobile} onChange={(e) => setForm({ ...form, mobile: e.target.value })} /></Field>
         <Field label="Email"><Input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></Field>
         <Field label="City"><Input value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} /></Field>
+        <Field label="Flat requirement">
+          <Select value={form.flat_type} onValueChange={(v) => setForm({ ...form, flat_type: v })}>
+            <SelectTrigger><SelectValue placeholder="Select flat type" /></SelectTrigger>
+            <SelectContent>{FLAT_TYPES.map((s) => <SelectItem key={s.v} value={s.v}>{s.l}</SelectItem>)}</SelectContent>
+          </Select>
+        </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Budget min"><Input type="number" value={form.budget_min} onChange={(e) => setForm({ ...form, budget_min: e.target.value })} /></Field>
           <Field label="Budget max"><Input type="number" value={form.budget_max} onChange={(e) => setForm({ ...form, budget_max: e.target.value })} /></Field>
@@ -177,6 +265,46 @@ function LeadDialog({ onDone, isAdmin, team }: { onDone: () => void; isAdmin: bo
       </div>
       <DialogFooter><Button onClick={save} disabled={busy} className="w-full">Save lead</Button></DialogFooter>
     </DialogContent>
+  );
+}
+
+function CallLogDialog({ lead, onClose, onSaved }: { lead: any | null; onClose: () => void; onSaved: () => void }) {
+  const [response, setResponse] = useState("");
+  const [notes, setNotes] = useState("");
+  const [busy, setBusy] = useState(false);
+  const save = async () => {
+    if (!lead) return;
+    if (!response) return toast.error("Pick a response");
+    setBusy(true);
+    const { data: u } = await supabase.auth.getUser();
+    const { error } = await supabase.from("call_logs").insert({
+      lead_id: lead.id,
+      employee_id: u.user!.id,
+      response,
+      notes: notes || null,
+    });
+    setBusy(false);
+    if (error) return toast.error(error.message);
+    toast.success("Call logged");
+    setResponse(""); setNotes("");
+    onSaved();
+  };
+  return (
+    <Dialog open={!!lead} onOpenChange={(o) => { if (!o) { onClose(); setResponse(""); setNotes(""); } }}>
+      <DialogContent className="max-h-[85vh] overflow-y-auto">
+        <DialogHeader><DialogTitle>Log call — {lead?.customer_name}</DialogTitle></DialogHeader>
+        <div className="grid gap-3">
+          <Field label="Response *">
+            <Select value={response} onValueChange={setResponse}>
+              <SelectTrigger><SelectValue placeholder="What was the outcome?" /></SelectTrigger>
+              <SelectContent>{CALL_RESPONSES.map((s) => <SelectItem key={s.v} value={s.v}>{s.l}</SelectItem>)}</SelectContent>
+            </Select>
+          </Field>
+          <Field label="Notes"><Textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Anything to remember…" /></Field>
+        </div>
+        <DialogFooter><Button onClick={save} disabled={busy} className="w-full">Save call log</Button></DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
