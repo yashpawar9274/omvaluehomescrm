@@ -46,6 +46,19 @@ export const BOOKING_STATUSES = [
   { v: "registered", l: "Registered" },
 ] as const;
 
+export const CALL_RESPONSES = [
+  { v: "interested", l: "Interested" },
+  { v: "not_interested", l: "Not Interested" },
+  { v: "no_answer", l: "No Answer" },
+  { v: "phone_off", l: "Phone Off / Switched Off" },
+  { v: "wrong_number", l: "Wrong Number" },
+  { v: "call_back_later", l: "Call Back Later" },
+  { v: "visit_scheduled", l: "Visit Scheduled" },
+  { v: "flat_booked", l: "Flat Booked" },
+  { v: "budget_mismatch", l: "Budget Mismatch" },
+  { v: "already_purchased", l: "Already Purchased" },
+] as const;
+
 export function labelOf<T extends readonly { v: string; l: string }[]>(arr: T, v: string | null | undefined) {
   return arr.find((x) => x.v === v)?.l ?? v ?? "—";
 }
