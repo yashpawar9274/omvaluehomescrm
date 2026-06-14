@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { BottomNav } from "./bottom-nav";
-import { playNotificationSound, unlockNotificationSound } from "@/lib/notification-sound";
+import { playNotificationSound, unlockNotificationSound, showSystemNotification } from "@/lib/notification-sound";
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { user } = useAuth();
@@ -40,6 +40,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         if (payload.eventType === "INSERT" && payload.new?.user_id === user.id) {
           playNotificationSound();
           toast.message(payload.new.title, { description: payload.new.message ?? undefined });
+          showSystemNotification(payload.new.title, payload.new.message ?? undefined);
         }
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "leads" }, () => {
