@@ -277,7 +277,7 @@ function CallLogDialog({ lead, onClose, onSaved }: { lead: any | null; onClose: 
     if (!response) return toast.error("Pick a response");
     setBusy(true);
     const { data: u } = await supabase.auth.getUser();
-    const { error } = await supabase.from("call_logs").insert({
+    const { error } = await (supabase as any).from("call_logs").insert({
       lead_id: lead.id,
       employee_id: u.user!.id,
       response,
