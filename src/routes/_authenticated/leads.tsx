@@ -204,7 +204,7 @@ function LeadDialog({ onDone, isAdmin, team }: { onDone: () => void; isAdmin: bo
     setBusy(true);
     const { data: u } = await supabase.auth.getUser();
     const assignedTo = isAdmin && form.assigned_to ? form.assigned_to : u.user?.id;
-    const { error } = await supabase.from("leads").insert({
+    const { error } = await supabase.from("leads").insert([{
       customer_name: form.customer_name.trim(),
       mobile: form.mobile.trim(),
       email: form.email || null,
@@ -213,10 +213,10 @@ function LeadDialog({ onDone, isAdmin, team }: { onDone: () => void; isAdmin: bo
       budget_max: form.budget_max ? Number(form.budget_max) : null,
       source: form.source as any,
       status: form.status as any,
-      flat_type: (form.flat_type || null) as any,
+      flat_type: ((form.flat_type || null) as any),
       created_by: u.user?.id,
       assigned_to: assignedTo,
-    });
+    } as any]);
     setBusy(false);
     if (error) return toast.error(error.message);
     toast.success("Lead created");
