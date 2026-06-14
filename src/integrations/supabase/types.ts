@@ -55,6 +55,41 @@ export type Database = {
           },
         ]
       }
+      call_logs: {
+        Row: {
+          created_at: string
+          employee_id: string
+          id: string
+          lead_id: string
+          notes: string | null
+          response: string
+        }
+        Insert: {
+          created_at?: string
+          employee_id: string
+          id?: string
+          lead_id: string
+          notes?: string | null
+          response: string
+        }
+        Update: {
+          created_at?: string
+          employee_id?: string
+          id?: string
+          lead_id?: string
+          notes?: string | null
+          response?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "call_logs_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       follow_ups: {
         Row: {
           created_at: string
@@ -120,6 +155,8 @@ export type Database = {
           customer_name: string
           email: string | null
           id: string
+          last_call_response: string | null
+          last_called_at: string | null
           mobile: string
           source: Database["public"]["Enums"]["lead_source"] | null
           status: Database["public"]["Enums"]["lead_status"]
@@ -135,6 +172,8 @@ export type Database = {
           customer_name: string
           email?: string | null
           id?: string
+          last_call_response?: string | null
+          last_called_at?: string | null
           mobile: string
           source?: Database["public"]["Enums"]["lead_source"] | null
           status?: Database["public"]["Enums"]["lead_status"]
@@ -150,6 +189,8 @@ export type Database = {
           customer_name?: string
           email?: string | null
           id?: string
+          last_call_response?: string | null
+          last_called_at?: string | null
           mobile?: string
           source?: Database["public"]["Enums"]["lead_source"] | null
           status?: Database["public"]["Enums"]["lead_status"]
