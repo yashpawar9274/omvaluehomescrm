@@ -138,3 +138,59 @@ OM Value Homes CRM
 This project is proprietary software developed for OM Value Homes.
 
 All rights reserved.
+
+---
+
+## Recent Fixes & Changelog
+
+### Fix — "Could not find 'flat' column in leads schema cache" (v1.0.x)
+
+**Issue (Before):**
+When adding or importing a lead with a flat-type preference (1 BHK / 2 BHK / 3 BHK / Shop / Office), the app threw a PostgREST schema-cache error:
+
+> `Could not find the 'flat_type' column of 'leads' in the schema cache`
+
+The `leads` table in the database did not have a `flat_type` column, but the frontend (Add Lead form and CSV/Excel Import) was sending it.
+
+**Root Cause:**
+Application code was deployed referencing `leads.flat_type`, but no migration had added the column to the database.
+
+**Fix (After):**
+A migration was applied that adds the `flat_type` enum column to the `leads` table and reloads PostgREST's schema cache:
+
+```sql
+ALTER TABLE public.leads
+  ADD COLUMN IF NOT EXISTS flat_type public.flat_type;
+NOTIFY pgrst, 'reload schema';
+```
+
+After this migration:
+- Add Lead form saves the selected flat type correctly.
+- CSV/Excel import maps `flat`, `bhk`, `flattype`, or `requirement` columns into `flat_type`.
+- Lead cards now show **Need:** 1 BHK / 2 BHK / 3 BHK / Shop / Office.
+
+### Lead Upload (CSV / Excel Import) — How To Use
+
+1. Go to **Leads** → click **Import**.
+2. Select a `.csv`, `.xlsx`, or `.xls` file.
+3. Supported column headers (case/space-insensitive):
+   - `name` / `customer_name`
+   - `mobile` / `phone`
+   - `email`
+   - `city`
+   - `flat` / `bhk` / `flattype` / `requirement` — values: `1bhk`, `2bhk`, `3bhk`, `shop`, `office` (or just `1`, `2`, `3`)
+   - `source` — facebook_ads / google_ads / website / walk_in / reference / whatsapp / property_portal
+   - `budget` — numeric (single value or `min-max`)
+4. Click **Upload** — leads are inserted in bulk and auto-assigned per admin rules.
+
+### Screenshots
+
+> Place screenshots under `docs/screenshots/` and they will render here.
+
+| Before (error) | After (fixed) |
+| --- | --- |
+| ![Before](docs/screenshots/before-flat-error.png) | ![After](docs/screenshots/after-flat-fixed.png) |
+
+| Lead Import | Add Lead Form |
+| --- | --- |
+| ![Import](docs/screenshots/lead-import.png) | ![Add Lead](docs/screenshots/add-lead.png) |
