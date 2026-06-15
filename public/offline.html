@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Offline · Om Value Homes CRM</title>
+<link rel="icon" href="/app-icon.png" />
+<link rel="apple-touch-icon" href="/app-icon.png" />
+<meta name="theme-color" content="#3F5A1F" />
+<style>
+  *,*::before,*::after { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background:
+      radial-gradient(1200px 600px at 80% -10%, rgba(63,90,31,.35), transparent 60%),
+      radial-gradient(900px 500px at -10% 100%, rgba(15,46,42,.55), transparent 55%),
+      linear-gradient(160deg, #0b1f1c 0%, #102b27 50%, #0e2521 100%);
+    color: #f4f6f0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .card {
+    width: 100%;
+    max-width: 420px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border-radius: 24px;
+    padding: 32px 26px;
+    text-align: center;
+    box-shadow: 0 30px 80px rgba(0,0,0,.45);
+  }
+  .logo {
+    width: 72px; height: 72px;
+    border-radius: 20px;
+    margin: 0 auto 18px;
+    background: #fff;
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden;
+    box-shadow: 0 8px 24px rgba(0,0,0,.35);
+  }
+  .logo img { width: 100%; height: 100%; object-fit: cover; }
+  .icon-wrap {
+    width: 84px; height: 84px;
+    margin: 6px auto 18px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, rgba(63,90,31,.35), rgba(63,90,31,.15));
+    border: 1px solid rgba(255,255,255,.08);
+    display: flex; align-items: center; justify-content: center;
+    position: relative;
+  }
+  .icon-wrap::after {
+    content: ""; position: absolute; inset: -6px;
+    border-radius: 50%;
+    border: 1px dashed rgba(255,255,255,.15);
+    animation: spin 14s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .icon-wrap svg { width: 40px; height: 40px; color: #c8d8a8; }
+  h1 { font-size: 22px; margin: 0 0 8px; letter-spacing: -0.01em; }
+  p { font-size: 14.5px; line-height: 1.55; margin: 0 0 22px; color: #c9d2c0; }
+  .status {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 6px 12px; border-radius: 999px;
+    background: rgba(255,80,80,.12); color: #ff9d9d;
+    border: 1px solid rgba(255,80,80,.25);
+    font-size: 12px; font-weight: 600;
+    margin-bottom: 18px;
+  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: #ff6b6b; box-shadow: 0 0 0 0 rgba(255,107,107,.6); animation: pulse 1.6s infinite; }
+  @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(255,107,107,.55);} 70% { box-shadow: 0 0 0 10px rgba(255,107,107,0);} 100% { box-shadow: 0 0 0 0 rgba(255,107,107,0);} }
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    width: 100%;
+    padding: 13px 18px;
+    border-radius: 14px;
+    font-size: 15px; font-weight: 600;
+    border: 0; cursor: pointer;
+    background: linear-gradient(180deg, #5a8030, #3f5a1f);
+    color: #fff;
+    box-shadow: 0 10px 24px rgba(63,90,31,.45);
+    transition: transform .15s ease;
+  }
+  .btn:active { transform: scale(.98); }
+  .tips {
+    margin-top: 18px; padding-top: 16px;
+    border-top: 1px solid rgba(255,255,255,.07);
+    text-align: left;
+  }
+  .tips h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .12em; color: #9bb08a; margin: 0 0 8px; }
+  .tips ul { margin: 0; padding: 0; list-style: none; font-size: 13px; color: #c9d2c0; }
+  .tips li { padding: 5px 0; display: flex; gap: 8px; }
+  .tips li::before { content: "•"; color: #8fb45a; }
+  .brand { margin-top: 18px; font-size: 11px; color: #7e8c73; letter-spacing: .08em; text-transform: uppercase; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo"><img src="/app-icon.png" alt="Om Value Homes" /></div>
+    <div class="status"><span class="dot"></span> No internet connection</div>
+    <div class="icon-wrap">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M1 1l22 22"/><path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55"/>
+        <path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39"/>
+        <path d="M10.71 5.05A16 16 0 0 1 22.58 9"/>
+        <path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88"/>
+        <path d="M8.53 16.11a6 6 0 0 1 6.95 0"/>
+        <circle cx="12" cy="20" r="1"/>
+      </svg>
+    </div>
+    <h1>You're Offline</h1>
+    <p>Aap abhi internet se connected nahi ho. Connection wapas aate hi app automatically reload ho jayegi.</p>
+    <button class="btn" id="retry">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10"/><path d="M20.49 15a9 9 0 0 1-14.85 3.36L1 14"/></svg>
+      Try Again
+    </button>
+    <div class="tips">
+      <h3>Quick Tips</h3>
+      <ul>
+        <li>Wi-Fi ya Mobile Data check karein</li>
+        <li>Airplane mode off karein</li>
+        <li>Network signal strong area me jayein</li>
+      </ul>
+    </div>
+    <div class="brand">Om Value Homes · CRM</div>
+  </div>
+<script>
+  const retry = () => location.reload();
+  document.getElementById('retry').addEventListener('click', retry);
+  window.addEventListener('online', retry);
+</script>
+</body>
+</html>
