@@ -61,30 +61,64 @@ function LeadsPage() {
       const buf = await file.arrayBuffer();
       const wb = XLSX.read(buf, { type: "array" });
       const sheet = wb.Sheets[wb.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json<any>(sheet, { defval: "" });
+      const rows = XLSX.utils.sheet_to_json<any>(sheet, { defval: "", raw: false });
       if (!rows.length) return toast.error("File is empty");
       const { data: u } = await supabase.auth.getUser();
       const uid = u.user?.id;
-      const norm = (s: string) => s?.toString().trim().toLowerCase().replace(/\s+|_/g, "");
-      const flatMap: Record<string, string> = { "1bhk": "1bhk", "1": "1bhk", "2bhk": "2bhk", "2": "2bhk", "3bhk": "3bhk", "3": "3bhk", "shop": "shop", "office": "office" };
+      const norm = (s: any) => String(s ?? "").trim().toLowerCase().replace(/[\s_\-.]+/g, "");
+      const flatMap: Record<string, string> = { "1bhk": "1bhk", "1": "1bhk", "1rk": "1bhk", "2bhk": "2bhk", "2": "2bhk", "3bhk": "3bhk", "3": "3bhk", "shop": "shop", "office": "office" };
+      const NAME_KEYS = ["name","customername","customer","fullname","clientname","client","leadname","contactname"];
+      const PHONE_KEYS = ["mobile","phone","phonenumber","contact","contactnumber","mobilenumber","number","mob","cell","whatsapp","whatsappnumber","tel"];
+      const EMAIL_KEYS = ["email","mail","emailid","emailaddress"];
+      const CITY_KEYS = ["city","location","address","area","place"];
+      const FLAT_KEYS = ["flat","flattype","bhk","requirement","need","unit","type","propertytype"];
+      const SRC_KEYS = ["source","leadsource","via","channel"];
+      const BMIN_KEYS = ["budgetmin","minbudget","budget","budgetfrom","pricemin"];
+      const BMAX_KEYS = ["budgetmax","maxbudget","budgetto","pricemax"];
       const pickKey = (row: any, keys: string[]) => {
-        for (const k of Object.keys(row)) if (keys.includes(norm(k))) return row[k];
+        for (const k of Object.keys(row)) if (keys.includes(norm(k))) {
+          const v = row[k];
+          if (v !== null && v !== undefined && String(v).trim() !== "") return v;
+        }
         return "";
       };
+      const extractPhone = (row: any) => {
+        const direct = pickKey(row, PHONE_KEYS);
+        if (direct) return String(direct).replace(/[^\d+]/g, "");
+        // fallback: any value that looks like a phone
+        for (const k of Object.keys(row)) {
+          const v = String(row[k] ?? "");
+          const digits = v.replace(/[^\d]/g, "");
+          if (digits.length >= 7 && digits.length <= 15 && !/@/.test(v)) return digits;
+        }
+        return "";
+      };
+      const extractEmail = (row: any) => {
+        const direct = pickKey(row, EMAIL_KEYS);
+        if (direct) return String(direct).trim();
+        for (const k of Object.keys(row)) {
+          const v = String(row[k] ?? "");
+          if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim())) return v.trim();
+        }
+        return "";
+      };
+      let skipped = 0;
       const records = rows.map((r) => {
-        const name = pickKey(r, ["name", "customername", "customer", "fullname"]);
-        const mobile = pickKey(r, ["mobile", "phone", "phonenumber", "contact", "mobilenumber"]);
-        const email = pickKey(r, ["email", "mail"]);
-        const city = pickKey(r, ["city", "location"]);
-        const flat = norm(String(pickKey(r, ["flat", "flattype", "bhk", "requirement"]) ?? ""));
-        const source = norm(String(pickKey(r, ["source", "leadsource"]) ?? ""));
-        const budgetMin = pickKey(r, ["budgetmin", "minbudget", "budget"]);
-        const budgetMax = pickKey(r, ["budgetmax", "maxbudget"]);
+        const name = String(pickKey(r, NAME_KEYS) || "").trim();
+        const mobile = extractPhone(r);
+        const email = extractEmail(r);
+        const city = String(pickKey(r, CITY_KEYS) || "").trim();
+        const flat = norm(pickKey(r, FLAT_KEYS));
+        const source = norm(pickKey(r, SRC_KEYS));
+        const budgetMin = pickKey(r, BMIN_KEYS);
+        const budgetMax = pickKey(r, BMAX_KEYS);
+        // Need at least one identifier
+        if (!name && !mobile && !email) { skipped++; return null; }
         return {
-          customer_name: String(name || "").trim(),
-          mobile: String(mobile || "").trim(),
-          email: email ? String(email).trim() : null,
-          city: city ? String(city).trim() : null,
+          customer_name: name || (email ? email.split("@")[0] : (city || "Unnamed")),
+          mobile: mobile || "N/A",
+          email: email || null,
+          city: city || null,
           flat_type: flat && flatMap[flat] ? flatMap[flat] : null,
           source: source || "website",
           status: "new",
@@ -93,11 +127,11 @@ function LeadsPage() {
           created_by: uid,
           assigned_to: uid,
         };
-      }).filter((r) => r.customer_name && r.mobile);
-      if (!records.length) return toast.error("No valid rows (need 'name' and 'mobile' columns)");
+      }).filter(Boolean) as any[];
+      if (!records.length) return toast.error("No usable rows found in file");
       const { error } = await supabase.from("leads").insert(records as any);
       if (error) return toast.error(error.message);
-      toast.success(`Imported ${records.length} leads`);
+      toast.success(`Imported ${records.length} leads${skipped ? ` (${skipped} skipped)` : ""}`);
       qc.invalidateQueries({ queryKey: ["leads"] });
     } catch (e: any) {
       toast.error(e.message ?? "Import failed");
