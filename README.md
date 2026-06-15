@@ -194,3 +194,75 @@ After this migration:
 | Lead Import | Add Lead Form |
 | --- | --- |
 | ![Import](docs/screenshots/lead-import.png) | ![Add Lead](docs/screenshots/add-lead.png) |
+
+---
+
+## 📱 PWA & Offline Support
+
+Om Value Homes CRM is a fully installable **Progressive Web App (PWA)** with offline support.
+
+### Features
+- ✅ **Installable** on Android, iOS, Windows, macOS (Add to Home Screen)
+- ✅ **Offline Page** — beautiful branded screen jab internet nahi ho
+- ✅ **Service Worker** caching (network-first for pages, stale-while-revalidate for assets)
+- ✅ **Online/Offline Indicator** — top pill notification jab connection drop ho
+- ✅ **Auto reconnect** — internet wapas aate hi page automatically reload
+- ✅ **Standalone display** — looks and feels like a native app (no browser UI)
+- ✅ **Theme color & splash** screens via manifest
+
+### How to Install on Android
+1. Published URL kholo: `https://omvaluehomescrm.lovable.app`
+2. Chrome menu (⋮) → **Install app** / **Add to Home screen**
+3. App icon home screen pe aa jayegi — native app jaisa launch hoga
+
+### How to Install on iOS
+1. Safari me URL kholo
+2. Share button → **Add to Home Screen**
+
+### Offline Behavior
+- App shell aur visited pages **cached** hoti hain
+- Internet kat-ne pe `/offline.html` (custom branded page) show hota hai
+- Supabase API calls (leads, auth) ke liye internet zaruri hai — woh cache nahi hote (data freshness ke liye)
+- Connection wapas aate hi sab realtime sync ho jata hai
+
+### Convert to Android APK / Play Store
+
+App ko native Android APK me convert karne ke 3 tarike:
+
+**1. PWABuilder (sabse easy — recommended)**
+- Visit: <https://www.pwabuilder.com>
+- URL daalo: `https://omvaluehomescrm.lovable.app`
+- "Package for Stores" → **Android** → APK/AAB download
+- Play Store pe upload kar sakte ho
+
+**2. Bubblewrap CLI (Google official TWA)**
+```bash
+npm i -g @bubblewrap/cli
+bubblewrap init --manifest=https://omvaluehomescrm.lovable.app/manifest.webmanifest
+bubblewrap build
+```
+Generates a signed `.apk` / `.aab` ready for Play Store.
+
+**3. Capacitor (full native wrapper)**
+```bash
+npm i @capacitor/core @capacitor/cli @capacitor/android
+npx cap init "Om Value Homes" "com.omvaluehomes.crm"
+npx cap add android
+npx cap open android
+```
+Android Studio se build → APK.
+
+### Developer Notes
+- Service worker (`public/sw.js`) sirf production domain pe register hota hai
+- Lovable preview/iframe me SW disabled hai (stale cache issues avoid karne ke liye)
+- Kill switch: append `?sw=off` to URL to force-unregister
+- Cache version bump: edit `VERSION` constant in `public/sw.js`
+
+### Files
+| File | Purpose |
+|------|---------|
+| `public/sw.js` | Service worker (offline + caching) |
+| `public/offline.html` | Branded offline fallback page |
+| `public/manifest.webmanifest` | PWA manifest (install metadata) |
+| `src/lib/register-sw.ts` | SW registration with preview guards |
+| `src/components/offline-indicator.tsx` | Top pill jab offline ho |
