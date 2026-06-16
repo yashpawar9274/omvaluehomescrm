@@ -377,3 +377,99 @@ function CallLogDialog({ lead, onClose, onSaved }: { lead: any | null; onClose: 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return <div className="grid gap-1.5"><Label className="text-xs">{label}</Label>{children}</div>;
 }
+
+function LeadDetailDialog({ lead, team, onClose }: { lead: any | null; team: any[]; onClose: () => void }) {
+  const { data: calls = [] } = useQuery({
+    queryKey: ["call-logs", lead?.id],
+    enabled: !!lead?.id,
+    queryFn: async () => {
+      const { data } = await (supabase as any).from("call_logs").select("*").eq("lead_id", lead.id).order("created_at", { ascending: false });
+      return data ?? [];
+    },
+  });
+  const { data: visits = [] } = useQuery({
+    queryKey: ["lead-visits", lead?.id],
+    enabled: !!lead?.id,
+    queryFn: async () => {
+      const { data } = await supabase.from("visits").select("*").eq("mobile", lead.mobile).order("visit_date", { ascending: false });
+      return data ?? [];
+    },
+  });
+  if (!lead) return null;
+  const assignee = team.find((t: any) => t.id === lead.assigned_to);
+  const waNum = String(lead.mobile ?? "").replace(/[^\d]/g, "");
+  const waPhone = waNum.length === 10 ? `91${waNum}` : waNum;
+  return (
+    <Dialog open={!!lead} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto">
+        <DialogHeader><DialogTitle>{lead.customer_name}</DialogTitle></DialogHeader>
+        <div className="space-y-3 text-sm">
+          <div className="flex flex-wrap gap-2">
+            <a href={`tel:${lead.mobile}`} className="inline-flex h-8 items-center rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground"><Phone className="mr-1 h-3 w-3" />Call</a>
+            <a href={`https://wa.me/${waPhone}`} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center rounded-md bg-[#25D366] px-3 text-xs font-medium text-white"><MessageCircle className="mr-1 h-3 w-3" />WhatsApp</a>
+            {lead.email && <a href={`mailto:${lead.email}`} className="inline-flex h-8 items-center rounded-md border px-3 text-xs"><Mail className="mr-1 h-3 w-3" />Email</a>}
+          </div>
+          <div className="grid grid-cols-2 gap-2 rounded-xl bg-accent/40 p-3 text-xs">
+            <Info icon={<Phone className="h-3 w-3" />} label="Mobile" value={lead.mobile} />
+            <Info icon={<Mail className="h-3 w-3" />} label="Email" value={lead.email ?? "—"} />
+            <Info icon={<MapPin className="h-3 w-3" />} label="City" value={lead.city ?? "—"} />
+            <Info icon={<CheckCircle2 className="h-3 w-3" />} label="Status" value={labelOf(LEAD_STATUSES, lead.status)} />
+            <Info icon={<MapPin className="h-3 w-3" />} label="Need" value={labelOf(FLAT_TYPES, lead.flat_type)} />
+            <Info icon={<MapPin className="h-3 w-3" />} label="Source" value={labelOf(LEAD_SOURCES, lead.source)} />
+            <Info icon={<IndianRupee className="h-3 w-3" />} label="Budget" value={lead.budget_min ? `₹${lead.budget_min} – ₹${lead.budget_max ?? "?"}` : "—"} />
+            <Info icon={<Calendar className="h-3 w-3" />} label="Added" value={new Date(lead.created_at).toLocaleDateString()} />
+            <Info icon={<UserPlus className="h-3 w-3" />} label="Assigned" value={assignee?.name || assignee?.email || "—"} />
+          </div>
+
+          <div>
+            <div className="mb-1.5 text-xs font-semibold text-muted-foreground">Call History ({calls.length})</div>
+            {calls.length === 0 ? (
+              <div className="rounded-lg border border-dashed p-3 text-center text-xs text-muted-foreground">No calls logged yet.</div>
+            ) : (
+              <div className="space-y-1.5">
+                {calls.map((c: any) => (
+                  <div key={c.id} className="rounded-lg border border-border bg-card p-2 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium">{labelOf(CALL_RESPONSES, c.response)}</span>
+                      <span className="text-muted-foreground">{new Date(c.created_at).toLocaleString()}</span>
+                    </div>
+                    {c.notes && <div className="mt-0.5 text-muted-foreground">{c.notes}</div>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div>
+            <div className="mb-1.5 text-xs font-semibold text-muted-foreground">Site Visits ({visits.length})</div>
+            {visits.length === 0 ? (
+              <div className="rounded-lg border border-dashed p-3 text-center text-xs text-muted-foreground">No visits yet.</div>
+            ) : (
+              <div className="space-y-1.5">
+                {visits.map((v: any) => (
+                  <div key={v.id} className="rounded-lg border border-border bg-card p-2 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium">{v.visit_date} {v.visit_time ?? ""}</span>
+                      <Badge variant="secondary">{labelOf(FLAT_TYPES, v.flat_type)}</Badge>
+                    </div>
+                    <div className="text-muted-foreground">{[v.project_name, v.tower_name, v.wing].filter(Boolean).join(" · ") || "—"}</div>
+                    {v.remarks && <div className="mt-0.5 text-muted-foreground">{v.remarks}</div>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function Info({ icon, label, value }: { icon: React.ReactNode; label: string; value: React.ReactNode }) {
+  return (
+    <div>
+      <div className="flex items-center gap-1 text-[10px] uppercase tracking-wide text-muted-foreground">{icon}{label}</div>
+      <div className="font-medium">{value}</div>
+    </div>
+  );
+}
