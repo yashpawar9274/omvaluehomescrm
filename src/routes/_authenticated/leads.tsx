@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus, Search, UserPlus, Phone, Upload, PhoneCall, CheckCircle2 } from "lucide-react";
+import { Plus, Search, UserPlus, Phone, Upload, PhoneCall, CheckCircle2, MessageCircle, Eye, Mail, MapPin, Calendar, IndianRupee } from "lucide-react";
 import * as XLSX from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/components/page-header";
@@ -48,6 +48,24 @@ function LeadsPage() {
   const filtered = leads.filter((l: any) =>
     !search || l.customer_name?.toLowerCase().includes(search.toLowerCase()) || l.mobile?.includes(search),
   );
+
+  // Group leads by created date: Today / Yesterday / Older
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const yStr = (() => { const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().slice(0, 10); })();
+  const groups: Record<string, any[]> = { Today: [], Yesterday: [], Older: [] };
+  filtered.forEach((l: any) => {
+    const d = (l.created_at ?? "").slice(0, 10);
+    if (d === todayStr) groups.Today.push(l);
+    else if (d === yStr) groups.Yesterday.push(l);
+    else groups.Older.push(l);
+  });
+
+  const [detailLead, setDetailLead] = useState<any | null>(null);
+  const waLink = (mobile: string) => {
+    const num = String(mobile).replace(/[^\d]/g, "");
+    const phone = num.length === 10 ? `91${num}` : num;
+    return `https://wa.me/${phone}`;
+  };
 
   const assignTo = async (leadId: string, userId: string) => {
     const { error } = await supabase.from("leads").update({ assigned_to: userId }).eq("id", leadId);
@@ -168,17 +186,22 @@ function LeadsPage() {
           <div className="rounded-2xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">
             No leads yet.
           </div>
-        ) : filtered.map((l: any) => {
+        ) : (["Today","Yesterday","Older"] as const).map((g) => groups[g].length === 0 ? null : (
+          <div key={g} className="space-y-2">
+            <div className="sticky top-0 z-10 -mx-1 bg-background/95 px-1 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground backdrop-blur">
+              {g} · {groups[g].length}
+            </div>
+            {groups[g].map((l: any) => {
           const assignee = team.find((t: any) => t.id === l.assigned_to);
           return (
             <div key={l.id} className="rounded-2xl border border-border bg-card p-4 shadow-sm">
               <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0 flex-1">
+                <button className="min-w-0 flex-1 text-left" onClick={() => setDetailLead(l)}>
                   <div className="font-semibold truncate">{l.customer_name}</div>
-                  <a href={`tel:${l.mobile}`} className="mt-0.5 flex items-center gap-1 text-xs text-primary">
+                  <div className="mt-0.5 flex items-center gap-1 text-xs text-primary">
                     <Phone className="h-3 w-3" />{l.mobile}
-                  </a>
-                </div>
+                  </div>
+                </button>
                 <Badge variant="secondary" className="shrink-0">{labelOf(LEAD_STATUSES, l.status)}</Badge>
               </div>
               <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-muted-foreground">
@@ -199,8 +222,14 @@ function LeadsPage() {
                 <a href={`tel:${l.mobile}`} className="inline-flex h-8 items-center rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground">
                   <Phone className="mr-1 h-3 w-3" />Call
                 </a>
+                <a href={waLink(l.mobile)} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center rounded-md bg-[#25D366] px-3 text-xs font-medium text-white">
+                  <MessageCircle className="mr-1 h-3 w-3" />WhatsApp
+                </a>
                 <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setCallLead(l)}>
                   <PhoneCall className="mr-1 h-3 w-3" />Log response
+                </Button>
+                <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => setDetailLead(l)}>
+                  <Eye className="mr-1 h-3 w-3" />Details
                 </Button>
               </div>
               {isAdmin ? (
@@ -221,8 +250,11 @@ function LeadsPage() {
             </div>
           );
         })}
+          </div>
+        ))}
       </div>
       <CallLogDialog lead={callLead} onClose={() => setCallLead(null)} onSaved={() => { setCallLead(null); qc.invalidateQueries({ queryKey: ["leads"] }); }} />
+      <LeadDetailDialog lead={detailLead} team={team} onClose={() => setDetailLead(null)} />
     </div>
   );
 }
@@ -344,4 +376,100 @@ function CallLogDialog({ lead, onClose, onSaved }: { lead: any | null; onClose: 
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return <div className="grid gap-1.5"><Label className="text-xs">{label}</Label>{children}</div>;
+}
+
+function LeadDetailDialog({ lead, team, onClose }: { lead: any | null; team: any[]; onClose: () => void }) {
+  const { data: calls = [] } = useQuery({
+    queryKey: ["call-logs", lead?.id],
+    enabled: !!lead?.id,
+    queryFn: async () => {
+      const { data } = await (supabase as any).from("call_logs").select("*").eq("lead_id", lead.id).order("created_at", { ascending: false });
+      return data ?? [];
+    },
+  });
+  const { data: visits = [] } = useQuery({
+    queryKey: ["lead-visits", lead?.id],
+    enabled: !!lead?.id,
+    queryFn: async () => {
+      const { data } = await supabase.from("visits").select("*").eq("mobile", lead.mobile).order("visit_date", { ascending: false });
+      return data ?? [];
+    },
+  });
+  if (!lead) return null;
+  const assignee = team.find((t: any) => t.id === lead.assigned_to);
+  const waNum = String(lead.mobile ?? "").replace(/[^\d]/g, "");
+  const waPhone = waNum.length === 10 ? `91${waNum}` : waNum;
+  return (
+    <Dialog open={!!lead} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto">
+        <DialogHeader><DialogTitle>{lead.customer_name}</DialogTitle></DialogHeader>
+        <div className="space-y-3 text-sm">
+          <div className="flex flex-wrap gap-2">
+            <a href={`tel:${lead.mobile}`} className="inline-flex h-8 items-center rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground"><Phone className="mr-1 h-3 w-3" />Call</a>
+            <a href={`https://wa.me/${waPhone}`} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center rounded-md bg-[#25D366] px-3 text-xs font-medium text-white"><MessageCircle className="mr-1 h-3 w-3" />WhatsApp</a>
+            {lead.email && <a href={`mailto:${lead.email}`} className="inline-flex h-8 items-center rounded-md border px-3 text-xs"><Mail className="mr-1 h-3 w-3" />Email</a>}
+          </div>
+          <div className="grid grid-cols-2 gap-2 rounded-xl bg-accent/40 p-3 text-xs">
+            <Info icon={<Phone className="h-3 w-3" />} label="Mobile" value={lead.mobile} />
+            <Info icon={<Mail className="h-3 w-3" />} label="Email" value={lead.email ?? "—"} />
+            <Info icon={<MapPin className="h-3 w-3" />} label="City" value={lead.city ?? "—"} />
+            <Info icon={<CheckCircle2 className="h-3 w-3" />} label="Status" value={labelOf(LEAD_STATUSES, lead.status)} />
+            <Info icon={<MapPin className="h-3 w-3" />} label="Need" value={labelOf(FLAT_TYPES, lead.flat_type)} />
+            <Info icon={<MapPin className="h-3 w-3" />} label="Source" value={labelOf(LEAD_SOURCES, lead.source)} />
+            <Info icon={<IndianRupee className="h-3 w-3" />} label="Budget" value={lead.budget_min ? `₹${lead.budget_min} – ₹${lead.budget_max ?? "?"}` : "—"} />
+            <Info icon={<Calendar className="h-3 w-3" />} label="Added" value={new Date(lead.created_at).toLocaleDateString()} />
+            <Info icon={<UserPlus className="h-3 w-3" />} label="Assigned" value={assignee?.name || assignee?.email || "—"} />
+          </div>
+
+          <div>
+            <div className="mb-1.5 text-xs font-semibold text-muted-foreground">Call History ({calls.length})</div>
+            {calls.length === 0 ? (
+              <div className="rounded-lg border border-dashed p-3 text-center text-xs text-muted-foreground">No calls logged yet.</div>
+            ) : (
+              <div className="space-y-1.5">
+                {calls.map((c: any) => (
+                  <div key={c.id} className="rounded-lg border border-border bg-card p-2 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium">{labelOf(CALL_RESPONSES, c.response)}</span>
+                      <span className="text-muted-foreground">{new Date(c.created_at).toLocaleString()}</span>
+                    </div>
+                    {c.notes && <div className="mt-0.5 text-muted-foreground">{c.notes}</div>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div>
+            <div className="mb-1.5 text-xs font-semibold text-muted-foreground">Site Visits ({visits.length})</div>
+            {visits.length === 0 ? (
+              <div className="rounded-lg border border-dashed p-3 text-center text-xs text-muted-foreground">No visits yet.</div>
+            ) : (
+              <div className="space-y-1.5">
+                {visits.map((v: any) => (
+                  <div key={v.id} className="rounded-lg border border-border bg-card p-2 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium">{v.visit_date} {v.visit_time ?? ""}</span>
+                      <Badge variant="secondary">{labelOf(FLAT_TYPES, v.flat_type)}</Badge>
+                    </div>
+                    <div className="text-muted-foreground">{[v.project_name, v.tower_name, v.wing].filter(Boolean).join(" · ") || "—"}</div>
+                    {v.remarks && <div className="mt-0.5 text-muted-foreground">{v.remarks}</div>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function Info({ icon, label, value }: { icon: React.ReactNode; label: string; value: React.ReactNode }) {
+  return (
+    <div>
+      <div className="flex items-center gap-1 text-[10px] uppercase tracking-wide text-muted-foreground">{icon}{label}</div>
+      <div className="font-medium">{value}</div>
+    </div>
+  );
 }

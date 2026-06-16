@@ -18,19 +18,25 @@ function Dashboard() {
     queryKey: ["dashboard-stats", isAdmin],
     queryFn: async () => {
       const today = new Date().toISOString().slice(0, 10);
-      const [leads, visits, todayVisits, pendingFu, bookings] = await Promise.all([
+      const [leads, visits, todayVisits, upcomingVisits, completedVisits, pendingFu, bookings, scheduledLeads] = await Promise.all([
         supabase.from("leads").select("id", { count: "exact", head: true }),
         supabase.from("visits").select("id", { count: "exact", head: true }),
         supabase.from("visits").select("id", { count: "exact", head: true }).eq("visit_date", today),
+        supabase.from("visits").select("id", { count: "exact", head: true }).gt("visit_date", today),
+        supabase.from("visits").select("id", { count: "exact", head: true }).lt("visit_date", today),
         supabase.from("follow_ups").select("id", { count: "exact", head: true }).eq("status", "pending"),
         supabase.from("bookings").select("id", { count: "exact", head: true }),
+        supabase.from("leads").select("id", { count: "exact", head: true }).eq("status", "visit_scheduled"),
       ]);
       return {
         leads: leads.count ?? 0,
         visits: visits.count ?? 0,
         todayVisits: todayVisits.count ?? 0,
+        upcomingVisits: upcomingVisits.count ?? 0,
+        completedVisits: completedVisits.count ?? 0,
         pendingFu: pendingFu.count ?? 0,
         bookings: bookings.count ?? 0,
+        scheduledLeads: scheduledLeads.count ?? 0,
       };
     },
   });
@@ -58,8 +64,10 @@ function Dashboard() {
 
   const cards = [
     { label: "Total Leads", value: stats?.leads ?? "—" },
-    { label: "Total Visits", value: stats?.visits ?? "—" },
+    { label: "Visits Scheduled (Leads)", value: stats?.scheduledLeads ?? "—" },
     { label: "Today's Visits", value: stats?.todayVisits ?? "—" },
+    { label: "Upcoming Visits", value: stats?.upcomingVisits ?? "—" },
+    { label: "Completed Visits", value: stats?.completedVisits ?? "—" },
     { label: "Pending Follow-ups", value: stats?.pendingFu ?? "—" },
     { label: "Bookings", value: stats?.bookings ?? "—" },
   ];

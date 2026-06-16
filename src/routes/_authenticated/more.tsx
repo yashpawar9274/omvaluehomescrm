@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
-  BadgeIndianRupee, Bell, BarChart3, FileBarChart, UserCog, ChevronRight,
+  BadgeIndianRupee, Bell, BarChart3, FileBarChart, UserCog, ChevronRight, Sparkles,
 } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { useAuth, useRole } from "@/hooks/use-auth";
@@ -22,6 +22,7 @@ function MorePage() {
   });
 
   const baseItems = [
+    { to: "/ai-assistant", label: "AI Assistant", icon: Sparkles },
     { to: "/bookings", label: "Bookings", icon: BadgeIndianRupee },
     { to: "/notifications", label: "Notifications", icon: Bell },
   ];
