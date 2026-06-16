@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus, Search, UserPlus, Phone, Upload, PhoneCall, CheckCircle2 } from "lucide-react";
+import { Plus, Search, UserPlus, Phone, Upload, PhoneCall, CheckCircle2, MessageCircle, Eye, Mail, MapPin, Calendar, IndianRupee } from "lucide-react";
 import * as XLSX from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/components/page-header";
@@ -48,6 +48,24 @@ function LeadsPage() {
   const filtered = leads.filter((l: any) =>
     !search || l.customer_name?.toLowerCase().includes(search.toLowerCase()) || l.mobile?.includes(search),
   );
+
+  // Group leads by created date: Today / Yesterday / Older
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const yStr = (() => { const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().slice(0, 10); })();
+  const groups: Record<string, any[]> = { Today: [], Yesterday: [], Older: [] };
+  filtered.forEach((l: any) => {
+    const d = (l.created_at ?? "").slice(0, 10);
+    if (d === todayStr) groups.Today.push(l);
+    else if (d === yStr) groups.Yesterday.push(l);
+    else groups.Older.push(l);
+  });
+
+  const [detailLead, setDetailLead] = useState<any | null>(null);
+  const waLink = (mobile: string) => {
+    const num = String(mobile).replace(/[^\d]/g, "");
+    const phone = num.length === 10 ? `91${num}` : num;
+    return `https://wa.me/${phone}`;
+  };
 
   const assignTo = async (leadId: string, userId: string) => {
     const { error } = await supabase.from("leads").update({ assigned_to: userId }).eq("id", leadId);
@@ -168,17 +186,22 @@ function LeadsPage() {
           <div className="rounded-2xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">
             No leads yet.
           </div>
-        ) : filtered.map((l: any) => {
+        ) : (["Today","Yesterday","Older"] as const).map((g) => groups[g].length === 0 ? null : (
+          <div key={g} className="space-y-2">
+            <div className="sticky top-0 z-10 -mx-1 bg-background/95 px-1 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground backdrop-blur">
+              {g} · {groups[g].length}
+            </div>
+            {groups[g].map((l: any) => {
           const assignee = team.find((t: any) => t.id === l.assigned_to);
           return (
             <div key={l.id} className="rounded-2xl border border-border bg-card p-4 shadow-sm">
               <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0 flex-1">
+                <button className="min-w-0 flex-1 text-left" onClick={() => setDetailLead(l)}>
                   <div className="font-semibold truncate">{l.customer_name}</div>
-                  <a href={`tel:${l.mobile}`} className="mt-0.5 flex items-center gap-1 text-xs text-primary">
+                  <div className="mt-0.5 flex items-center gap-1 text-xs text-primary">
                     <Phone className="h-3 w-3" />{l.mobile}
-                  </a>
-                </div>
+                  </div>
+                </button>
                 <Badge variant="secondary" className="shrink-0">{labelOf(LEAD_STATUSES, l.status)}</Badge>
               </div>
               <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-muted-foreground">
@@ -199,8 +222,14 @@ function LeadsPage() {
                 <a href={`tel:${l.mobile}`} className="inline-flex h-8 items-center rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground">
                   <Phone className="mr-1 h-3 w-3" />Call
                 </a>
+                <a href={waLink(l.mobile)} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center rounded-md bg-[#25D366] px-3 text-xs font-medium text-white">
+                  <MessageCircle className="mr-1 h-3 w-3" />WhatsApp
+                </a>
                 <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setCallLead(l)}>
                   <PhoneCall className="mr-1 h-3 w-3" />Log response
+                </Button>
+                <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => setDetailLead(l)}>
+                  <Eye className="mr-1 h-3 w-3" />Details
                 </Button>
               </div>
               {isAdmin ? (
@@ -221,8 +250,11 @@ function LeadsPage() {
             </div>
           );
         })}
+          </div>
+        ))}
       </div>
       <CallLogDialog lead={callLead} onClose={() => setCallLead(null)} onSaved={() => { setCallLead(null); qc.invalidateQueries({ queryKey: ["leads"] }); }} />
+      <LeadDetailDialog lead={detailLead} team={team} onClose={() => setDetailLead(null)} />
     </div>
   );
 }
