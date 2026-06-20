@@ -32,6 +32,18 @@ self.addEventListener("message", (event) => {
   if (event.data === "SKIP_WAITING") self.skipWaiting();
 });
 
+// Click on a system notification → focus / open the app.
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  event.waitUntil((async () => {
+    const allClients = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+    for (const c of allClients) {
+      if ("focus" in c) { try { await c.focus(); return; } catch { /* ignore */ } }
+    }
+    if (self.clients.openWindow) await self.clients.openWindow("/");
+  })());
+});
+
 function isHTMLRequest(request) {
   return request.mode === "navigate" ||
     (request.method === "GET" && request.headers.get("accept")?.includes("text/html"));

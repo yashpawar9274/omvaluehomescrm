@@ -81,17 +81,45 @@ export function playNotificationSound() {
   } catch { /* ignore */ }
 }
 
-/** Show an OS-level notification (notification bar) if permission granted. */
-export function showSystemNotification(title: string, body?: string) {
+/** Show an OS-level notification (notification bar) if permission granted.
+ *  Uses the service worker when available — this lets the notification persist
+ *  in the system tray (Instagram-style) even when the screen is off or the
+ *  tab is in background, as long as the page is still open. */
+export async function showSystemNotification(title: string, body?: string) {
   try {
     if (typeof window === "undefined" || !("Notification" in window)) return;
     if (Notification.permission !== "granted") return;
-    const n = new Notification(title, {
+    const opts: NotificationOptions = {
       body: body ?? "",
       icon: "/app-icon.png",
       badge: "/app-icon.png",
       tag: "visitflow-" + Date.now(),
-    });
+      // Persistent until user dismisses, like Instagram.
+      requireInteraction: true,
+      vibrate: [200, 100, 200],
+    } as NotificationOptions;
+    // Prefer the SW registration so notifications keep showing when the tab
+    // is hidden / device screen is off.
+    if ("serviceWorker" in navigator) {
+      const reg = await navigator.serviceWorker.getRegistration();
+      if (reg) {
+        await reg.showNotification(title, opts);
+        return;
+      }
+    }
+    const n = new Notification(title, opts);
     n.onclick = () => { try { window.focus(); n.close(); } catch { /* ignore */ } };
   } catch { /* ignore */ }
+}
+
+/** Explicitly prompt for notification permission (button-triggered). */
+export async function requestNotificationPermission(): Promise<NotificationPermission> {
+  if (typeof window === "undefined" || !("Notification" in window)) return "denied";
+  if (Notification.permission === "granted") return "granted";
+  try {
+    const res = await Notification.requestPermission();
+    return res;
+  } catch {
+    return "denied";
+  }
 }
