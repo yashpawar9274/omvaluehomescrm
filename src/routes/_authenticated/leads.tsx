@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus, Search, UserPlus, Phone, Upload, PhoneCall, CheckCircle2, MessageCircle, Eye, Mail, MapPin, Calendar, IndianRupee } from "lucide-react";
+import { Plus, Search, UserPlus, Phone, Upload, Download, PhoneCall, CheckCircle2, MessageCircle, Eye, Mail, MapPin, Calendar, IndianRupee, Pencil, Trash2 } from "lucide-react";
 import * as XLSX from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/components/page-header";
@@ -158,6 +158,38 @@ function LeadsPage() {
     }
   };
 
+  const exportLeads = () => {
+    if (!filtered.length) { toast.error("No leads to export"); return; }
+    const rows = filtered.map((l: any) => ({
+      Name: l.customer_name,
+      Mobile: l.mobile,
+      Email: l.email ?? "",
+      City: l.city ?? "",
+      Status: l.status ?? "",
+      Need: l.flat_type ?? "",
+      Source: l.source ?? "",
+      "Budget Min": l.budget_min ?? "",
+      "Budget Max": l.budget_max ?? "",
+      "Last Call": l.last_call_response ?? "",
+      "Last Called": l.last_called_at ?? "",
+      Created: l.created_at,
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Leads");
+    XLSX.writeFile(wb, `leads-${new Date().toISOString().slice(0,10)}.xlsx`);
+    toast.success(`Exported ${rows.length} leads`);
+  };
+
+  const deleteLead = async (id: string) => {
+    if (!confirm("Delete this lead permanently?")) return;
+    const { error } = await supabase.from("leads").delete().eq("id", id);
+    if (error) return toast.error(error.message);
+    toast.success("Lead deleted");
+    setDetailLead(null);
+    qc.invalidateQueries({ queryKey: ["leads"] });
+  };
+
   return (
     <div>
       <PageHeader title="Leads" subtitle={isAdmin ? "All leads — assign to team." : "Your assigned leads."}
@@ -166,6 +198,9 @@ function LeadsPage() {
             <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) importFile(f); }} />
             <Button size="sm" variant="outline" onClick={() => fileRef.current?.click()}>
               <Upload className="mr-1 h-4 w-4" />Import
+            </Button>
+            <Button size="sm" variant="outline" onClick={exportLeads}>
+              <Download className="mr-1 h-4 w-4" />Export
             </Button>
             <Dialog open={open} onOpenChange={setOpen}>
               <DialogTrigger asChild><Button size="sm"><Plus className="mr-1 h-4 w-4" />New</Button></DialogTrigger>
@@ -254,7 +289,7 @@ function LeadsPage() {
         ))}
       </div>
       <CallLogDialog lead={callLead} onClose={() => setCallLead(null)} onSaved={() => { setCallLead(null); qc.invalidateQueries({ queryKey: ["leads"] }); }} />
-      <LeadDetailDialog lead={detailLead} team={team} onClose={() => setDetailLead(null)} />
+      <LeadDetailDialog lead={detailLead} team={team} isAdmin={isAdmin} onClose={() => setDetailLead(null)} onDelete={deleteLead} onUpdated={() => qc.invalidateQueries({ queryKey: ["leads"] })} />
     </div>
   );
 }
@@ -378,7 +413,40 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   return <div className="grid gap-1.5"><Label className="text-xs">{label}</Label>{children}</div>;
 }
 
-function LeadDetailDialog({ lead, team, onClose }: { lead: any | null; team: any[]; onClose: () => void }) {
+function LeadDetailDialog({ lead, team, isAdmin, onClose, onDelete, onUpdated }: { lead: any | null; team: any[]; isAdmin: boolean; onClose: () => void; onDelete: (id: string) => void; onUpdated: () => void }) {
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState<any>({});
+  const startEdit = () => {
+    setForm({
+      customer_name: lead?.customer_name ?? "",
+      mobile: lead?.mobile ?? "",
+      email: lead?.email ?? "",
+      city: lead?.city ?? "",
+      status: lead?.status ?? "new",
+      flat_type: lead?.flat_type ?? "",
+      budget_min: lead?.budget_min ?? "",
+      budget_max: lead?.budget_max ?? "",
+    });
+    setEditing(true);
+  };
+  const saveEdit = async () => {
+    if (!lead) return;
+    const patch: any = {
+      customer_name: form.customer_name?.trim() || lead.customer_name,
+      mobile: form.mobile?.trim() || lead.mobile,
+      email: form.email || null,
+      city: form.city || null,
+      status: form.status,
+      flat_type: form.flat_type || null,
+      budget_min: form.budget_min ? Number(form.budget_min) : null,
+      budget_max: form.budget_max ? Number(form.budget_max) : null,
+    };
+    const { error } = await supabase.from("leads").update(patch).eq("id", lead.id);
+    if (error) return toast.error(error.message);
+    toast.success("Lead updated");
+    setEditing(false);
+    onUpdated();
+  };
   const { data: calls = [] } = useQuery({
     queryKey: ["call-logs", lead?.id],
     enabled: !!lead?.id,
@@ -403,11 +471,41 @@ function LeadDetailDialog({ lead, team, onClose }: { lead: any | null; team: any
     <Dialog open={!!lead} onOpenChange={(o) => { if (!o) onClose(); }}>
       <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle>{lead.customer_name}</DialogTitle></DialogHeader>
+        {editing ? (
+          <div className="grid gap-3">
+            <Field label="Name"><Input value={form.customer_name} onChange={(e) => setForm({ ...form, customer_name: e.target.value })} /></Field>
+            <Field label="Mobile"><Input value={form.mobile} onChange={(e) => setForm({ ...form, mobile: e.target.value })} /></Field>
+            <Field label="Email"><Input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></Field>
+            <Field label="City"><Input value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} /></Field>
+            <Field label="Status">
+              <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{LEAD_STATUSES.map((s) => <SelectItem key={s.v} value={s.v}>{s.l}</SelectItem>)}</SelectContent>
+              </Select>
+            </Field>
+            <Field label="Need">
+              <Select value={form.flat_type} onValueChange={(v) => setForm({ ...form, flat_type: v })}>
+                <SelectTrigger><SelectValue placeholder="—" /></SelectTrigger>
+                <SelectContent>{FLAT_TYPES.map((s) => <SelectItem key={s.v} value={s.v}>{s.l}</SelectItem>)}</SelectContent>
+              </Select>
+            </Field>
+            <div className="grid grid-cols-2 gap-2">
+              <Field label="Budget min"><Input type="number" value={form.budget_min} onChange={(e) => setForm({ ...form, budget_min: e.target.value })} /></Field>
+              <Field label="Budget max"><Input type="number" value={form.budget_max} onChange={(e) => setForm({ ...form, budget_max: e.target.value })} /></Field>
+            </div>
+            <div className="flex gap-2">
+              <Button onClick={saveEdit} className="flex-1">Save</Button>
+              <Button variant="outline" onClick={() => setEditing(false)} className="flex-1">Cancel</Button>
+            </div>
+          </div>
+        ) : (
         <div className="space-y-3 text-sm">
           <div className="flex flex-wrap gap-2">
             <a href={`tel:${lead.mobile}`} className="inline-flex h-8 items-center rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground"><Phone className="mr-1 h-3 w-3" />Call</a>
             <a href={`https://wa.me/${waPhone}`} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center rounded-md bg-[#25D366] px-3 text-xs font-medium text-white"><MessageCircle className="mr-1 h-3 w-3" />WhatsApp</a>
             {lead.email && <a href={`mailto:${lead.email}`} className="inline-flex h-8 items-center rounded-md border px-3 text-xs"><Mail className="mr-1 h-3 w-3" />Email</a>}
+            <Button size="sm" variant="outline" className="h-8 text-xs" onClick={startEdit}><Pencil className="mr-1 h-3 w-3" />Edit</Button>
+            {isAdmin && <Button size="sm" variant="destructive" className="h-8 text-xs" onClick={() => onDelete(lead.id)}><Trash2 className="mr-1 h-3 w-3" />Delete</Button>}
           </div>
           <div className="grid grid-cols-2 gap-2 rounded-xl bg-accent/40 p-3 text-xs">
             <Info icon={<Phone className="h-3 w-3" />} label="Mobile" value={lead.mobile} />
@@ -460,6 +558,7 @@ function LeadDetailDialog({ lead, team, onClose }: { lead: any | null; team: any
             )}
           </div>
         </div>
+        )}
       </DialogContent>
     </Dialog>
   );
