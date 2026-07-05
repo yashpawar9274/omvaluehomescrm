@@ -12,6 +12,9 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({ meta: [{ title: "Sign in — VisitFlow CRM" }] }),
+  validateSearch: (s: Record<string, unknown>) => ({
+    next: typeof s.next === "string" ? s.next : undefined,
+  }),
   component: AuthPage,
 });
 
@@ -23,6 +26,9 @@ const schema = z.object({
 
 function AuthPage() {
   const navigate = useNavigate();
+  const { next } = Route.useSearch();
+  const safeNext = next && next.startsWith("/") && !next.startsWith("//") ? next : undefined;
+  const postAuthTarget = safeNext ?? "/dashboard";
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -31,9 +37,12 @@ function AuthPage() {
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
-      if (data.session) navigate({ to: "/dashboard" });
+      if (data.session) {
+        if (safeNext) window.location.href = safeNext;
+        else navigate({ to: "/dashboard" });
+      }
     });
-  }, [navigate]);
+  }, [navigate, safeNext]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,7 +57,10 @@ function AuthPage() {
         const { error } = await supabase.auth.signUp({
           email,
           password,
-          options: { emailRedirectTo: `${window.location.origin}/dashboard`, data: { name } },
+          options: {
+            emailRedirectTo: `${window.location.origin}${postAuthTarget}`,
+            data: { name },
+          },
         });
         if (error) throw error;
         toast.success("Account created — you can sign in.");
@@ -56,7 +68,8 @@ function AuthPage() {
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        navigate({ to: "/dashboard" });
+        if (safeNext) window.location.href = safeNext;
+        else navigate({ to: "/dashboard" });
       }
     } catch (err: any) {
       toast.error(err.message ?? "Something went wrong");
@@ -67,14 +80,17 @@ function AuthPage() {
 
   const google = async () => {
     setBusy(true);
-    const result = await lovable.auth.signInWithOAuth("google", { redirect_uri: `${window.location.origin}/dashboard` });
+    const result = await lovable.auth.signInWithOAuth("google", {
+      redirect_uri: `${window.location.origin}${postAuthTarget}`,
+    });
     if (result.error) {
       toast.error(result.error.message ?? "Google sign-in failed");
       setBusy(false);
       return;
     }
     if (result.redirected) return;
-    navigate({ to: "/dashboard" });
+    if (safeNext) window.location.href = safeNext;
+    else navigate({ to: "/dashboard" });
   };
 
   return (

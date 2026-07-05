@@ -1,0 +1,252 @@
+{
+  "version": 1,
+  "sdk_version": "0.20.0",
+  "path": "/mcp",
+  "auth": {
+    "type": "oauth",
+    "issuer": "https://vfvujcgucbbcjvzmszkl.supabase.co/auth/v1",
+    "accepted_audiences": [
+      "authenticated"
+    ]
+  },
+  "mcp": {
+    "server": {
+      "name": "om-value-homes-crm",
+      "version": "0.1.0",
+      "title": "Om Value Homes CRM"
+    },
+    "tools": [
+      {
+        "name": "list_leads",
+        "title": "List leads",
+        "description": "List real-estate leads visible to the signed-in user. Optional filters: free-text query (matches name/mobile/city), status, and result limit.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "query": {
+              "description": "Substring to match on customer name, mobile, or city.",
+              "type": "string"
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "new",
+                "contacted",
+                "interested",
+                "site_visit",
+                "negotiation",
+                "booking",
+                "closed_won",
+                "closed_lost"
+              ]
+            },
+            "limit": {
+              "default": 20,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50
+            }
+          }
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "get_lead",
+        "title": "Get lead details",
+        "description": "Fetch a single lead by id with its full profile plus the recent call log history the signed-in user can read.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Lead id (UUID)."
+            }
+          },
+          "required": [
+            "id"
+          ]
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "create_lead",
+        "title": "Create lead",
+        "description": "Create a new real-estate lead assigned to the signed-in user.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "customer_name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "mobile": {
+              "type": "string",
+              "minLength": 6
+            },
+            "email": {
+              "type": "string",
+              "format": "email",
+              "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+            },
+            "city": {
+              "type": "string"
+            },
+            "flat_type": {
+              "type": "string",
+              "enum": [
+                "1bhk",
+                "2bhk",
+                "3bhk",
+                "shop",
+                "office"
+              ]
+            },
+            "source": {
+              "description": "Lead source e.g. website, facebook, referral.",
+              "type": "string"
+            },
+            "budget_min": {
+              "type": "number"
+            },
+            "budget_max": {
+              "type": "number"
+            },
+            "notes": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "customer_name",
+            "mobile"
+          ]
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "update_lead_status",
+        "title": "Update lead status",
+        "description": "Change the pipeline status of a lead the signed-in user can edit.",
+        "annotations": {
+          "readOnlyHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "new",
+                "contacted",
+                "interested",
+                "site_visit",
+                "negotiation",
+                "booking",
+                "closed_won",
+                "closed_lost"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "status"
+          ]
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "list_visits",
+        "title": "List site visits",
+        "description": "List scheduled site visits visible to the signed-in user, filtered by time scope.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "scope": {
+              "default": "upcoming",
+              "type": "string",
+              "enum": [
+                "today",
+                "upcoming",
+                "past",
+                "all"
+              ]
+            },
+            "limit": {
+              "default": 20,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50
+            }
+          }
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "list_follow_ups",
+        "title": "List follow-ups",
+        "description": "List follow-up reminders (call/visit) visible to the signed-in user.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "scope": {
+              "default": "today",
+              "type": "string",
+              "enum": [
+                "today",
+                "pending",
+                "overdue",
+                "all"
+              ]
+            },
+            "limit": {
+              "default": 20,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50
+            }
+          }
+        },
+        "outputSchema": null
+      }
+    ]
+  }
+}
